@@ -52,6 +52,52 @@ TIM_HandleTypeDef htim2;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
+// Radar 1 data structures
+uint16_t IFI_radar1 = 0;
+uint16_t IFQ_radar1 = 0;
+float32_t buffer1_radar1[2 * FFT_BUFFER_SIZE];
+float32_t buffer2_radar1[2 * FFT_BUFFER_SIZE];
+float32_t *active_buffer_radar1 = buffer1_radar1;
+float32_t *processing_buffer_radar1 = buffer2_radar1;
+uint16_t acquired_sample_count_radar1 = 0;
+uint8_t data_ready_f_radar1 = 0;
+float32_t peak_index_radar1 = 0.0f;
+float32_t max_value_radar1 = 0.0f;
+float32_t target_velocity_radar1 = 0.0f;
+
+// Radar 2 data structures
+uint16_t IFI_radar2 = 0;
+uint16_t IFQ_radar2 = 0;
+float32_t buffer1_radar2[2 * FFT_BUFFER_SIZE];
+float32_t buffer2_radar2[2 * FFT_BUFFER_SIZE];
+float32_t *active_buffer_radar2 = buffer1_radar2;
+float32_t *processing_buffer_radar2 = buffer2_radar2;
+uint16_t acquired_sample_count_radar2 = 0;
+uint8_t data_ready_f_radar2 = 0;
+float32_t peak_index_radar2 = 0.0f;
+float32_t max_value_radar2 = 0.0f;
+float32_t target_velocity_radar2 = 0.0f;
+
+// Shared variables
+uint8_t radar1_initialized = 0;
+uint8_t radar2_initialized = 0;
+uint32_t error_cnt = 0;
+
+#define VELOCITY_BUFFER_SIZE 3
+float32_t velocity_buffer_radar1[VELOCITY_BUFFER_SIZE];
+uint8_t velocity_buffer_index_radar1 = 0;
+uint8_t velocity_buffer_filled_radar1 = 0;
+float32_t velocity_average_radar1 = 0.0f;
+
+float32_t velocity_buffer_radar2[VELOCITY_BUFFER_SIZE];
+uint8_t velocity_buffer_index_radar2 = 0;
+uint8_t velocity_buffer_filled_radar2 = 0;
+float32_t velocity_average_radar2 = 0.0f;
+
+#define RADAR1_CS_PORT GPIOC
+#define RADAR1_CS_PIN  GPIO_PIN_13
+#define RADAR2_CS_PORT GPIOA
+#define RADAR2_CS_PIN  GPIO_PIN_9
 
 /* USER CODE END PV */
 
@@ -67,7 +113,17 @@ static void MX_TIM2_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+#ifdef __GNUC__
+#define PUTCHAR_PROTOTYPE int __io_putchar(int ch)
+#else
+#define PUTCHAR_PROTOTYPE int fputc(int ch, FILE *f)
+#endif
 
+PUTCHAR_PROTOTYPE
+{
+  HAL_UART_Transmit(&huart2, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
+  return ch;
+}
 /* USER CODE END 0 */
 
 /**
@@ -104,12 +160,63 @@ int main(void)
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
 
+  // Initialize CS pins
+  HAL_GPIO_WritePin(RADAR1_CS_PORT, RADAR1_CS_PIN, GPIO_PIN_SET);   // Radar 1 CS high
+  HAL_GPIO_WritePin(RADAR2_CS_PORT, RADAR2_CS_PIN, GPIO_PIN_SET);  // Radar 2 CS high
+
+  // Initialize Radar 1
+  bgt60ltr11_HW_reset(RADAR_1);
+  HAL_Delay(100);  // Wait for radar to stabilize
+  if (bgt60ltr11_pulsed_mode_init_extended_range(RADAR_1) != HAL_OK) {
+      Error_Handler();
+  }
+
+  // Initialize Radar 2
+  bgt60ltr11_HW_reset(RADAR_2);
+  HAL_Delay(100);  // Wait for radar to stabilize
+  if (bgt60ltr11_pulsed_mode_init_extended_range(RADAR_2) != HAL_OK) {
+      Error_Handler();
+  }
+
+  HAL_Delay(1000);
+  HAL_TIM_Base_Start_IT(&htim2);
+
+  // Radars successfully initialized
+  radar1_initialized = 1;
+  radar2_initialized = 1;
+
+  for (uint8_t i = 0; i < VELOCITY_BUFFER_SIZE; i++) {
+	  velocity_buffer_radar1[i] = 0.0f;
+	  velocity_buffer_radar2[i] = 0.0f;
+  }
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  // Process Radar 1 data when ready
+	  if (radar1_initialized && data_ready_f_radar1) {
+		  fft256_spectrum(processing_buffer_radar1);
+		  find_peak_frequency(processing_buffer_radar1, FFT_BUFFER_SIZE, 1000, &peak_index_radar1, &max_value_radar1, &target_velocity_radar1);
+		  printf("Radar 1 - velocity: %.5f m/s\t", target_velocity_radar1);
+		  data_ready_f_radar1 = 0;
+	  } else {
+		  printf("%-35s", "");
+	  }
+
+	  // Process Radar 2 data when ready
+	  if (radar2_initialized && data_ready_f_radar2) {
+		  fft256_spectrum(processing_buffer_radar2);
+		  find_peak_frequency(processing_buffer_radar2, FFT_BUFFER_SIZE, 1000, &peak_index_radar2, &max_value_radar2, &target_velocity_radar2);
+		  printf("Radar 2 - velocity: %.5f m/s", target_velocity_radar2);
+		  data_ready_f_radar2 = 0;
+	  } else {
+		  printf("\r\n");
+	  }
+
+	  HAL_Delay(100);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -328,7 +435,130 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
+    if (htim == &htim2) {
+        // Alternate between radars (could also use a counter to give equal time)
+        static uint8_t current_radar = RADAR_1;
 
+        if (current_radar == RADAR_1) {
+            // Process Radar 1
+            if (acquired_sample_count_radar1 < FFT_BUFFER_SIZE) {
+                if (bgt60ltr11_get_RAW_data(RADAR_1, &IFI_radar1, &IFQ_radar1) == HAL_OK) {
+                    if (IFI_radar1 <= 0x3FC && IFQ_radar1 <= 0x3FC) {
+                        active_buffer_radar1[2 * acquired_sample_count_radar1] =  (float32_t)(IFI_radar1 >> 2) / 255.0f;
+                        active_buffer_radar1[2 * acquired_sample_count_radar1 + 1] = (float32_t)(IFQ_radar1 >> 2) / 255.0f;
+                        acquired_sample_count_radar1++;
+                    }
+                } else {
+                    error_cnt++;
+                }
+            } else {
+                // Buffer full, swap buffers
+                float32_t *temp = active_buffer_radar1;
+                active_buffer_radar1 = processing_buffer_radar1;
+                processing_buffer_radar1 = temp;
+                data_ready_f_radar1 = 1;
+                acquired_sample_count_radar1 = 0;
+            }
+        } else {
+            // Process Radar 2
+            if (acquired_sample_count_radar2 < FFT_BUFFER_SIZE) {
+                if (bgt60ltr11_get_RAW_data(RADAR_2, &IFI_radar2, &IFQ_radar2) == HAL_OK) {
+                    if (IFI_radar2 <= 0x3FC && IFQ_radar2 <= 0x3FC) {
+                        active_buffer_radar2[2 * acquired_sample_count_radar2] = (float32_t)(IFI_radar2 >> 2) / 255.0f;
+                        active_buffer_radar2[2 * acquired_sample_count_radar2 + 1] = (float32_t)(IFQ_radar2 >> 2) / 255.0f;
+                        acquired_sample_count_radar2++;
+                    }
+                } else {
+                    error_cnt++;
+                }
+            } else {
+                // Buffer full, swap buffers
+                float32_t *temp = active_buffer_radar2;
+                active_buffer_radar2 = processing_buffer_radar2;
+                processing_buffer_radar2 = temp;
+                data_ready_f_radar2 = 1;
+                acquired_sample_count_radar2 = 0;
+            }
+        }
+
+        // Toggle between radars
+        current_radar = (current_radar == RADAR_1) ? RADAR_2 : RADAR_1;
+    }
+}
+
+
+
+void sendDataToMonitor(float32_t vel) {
+	printf("DATA,%.5f\n", vel);
+}
+
+float32_t calculate_rolling_average_with_filtering1(float32_t new_value) {
+    // Set threshold for outlier detection (adjust based on your expected velocity range)
+    float32_t max_deviation = 20.0f; // Maximum allowed deviation from current average
+
+    // If we have a previous average and the new value deviates too much, reject it
+    if (velocity_buffer_filled_radar1 && fabsf(new_value - velocity_average_radar1) > max_deviation) {
+        // Outlier detected, don't add to buffer
+        //printf("Outlier rejected: %.5f (current avg: %.5f)\r\n", new_value, velocity_average_radar1);
+        return velocity_average_radar1; // Return previous average
+    }
+
+    // Regular rolling average calculation
+    velocity_buffer_radar1[velocity_buffer_index_radar1] = new_value;
+    velocity_buffer_index_radar1 = (velocity_buffer_index_radar1 + 1) % VELOCITY_BUFFER_SIZE;
+
+    if (velocity_buffer_index_radar1 == 0 && velocity_buffer_filled_radar1 == 0) {
+        velocity_buffer_filled_radar1 = 1;
+    }
+
+    float32_t sum = 0.0f;
+    uint8_t count = velocity_buffer_filled_radar1 ? VELOCITY_BUFFER_SIZE : velocity_buffer_index_radar1;
+
+    if (count == 0) {
+        return new_value;
+    }
+
+    for (uint8_t i = 0; i < count; i++) {
+        sum += velocity_buffer_radar1[i];
+    }
+
+    return sum / count;
+}
+
+
+float32_t calculate_rolling_average_with_filtering2(float32_t new_value) {
+    // Set threshold for outlier detection (adjust based on your expected velocity range)
+    float32_t max_deviation = 20.0f; // Maximum allowed deviation from current average
+
+    // If we have a previous average and the new value deviates too much, reject it
+    if (velocity_buffer_filled_radar2 && fabsf(new_value - velocity_average_radar2) > max_deviation) {
+        // Outlier detected, don't add to buffer
+        //printf("Outlier rejected: %.5f (current avg: %.5f)\r\n", new_value, velocity_average_radar2);
+        return velocity_average_radar2; // Return previous average
+    }
+
+    // Regular rolling average calculation
+    velocity_buffer_radar2[velocity_buffer_index_radar2] = new_value;
+    velocity_buffer_index_radar2 = (velocity_buffer_index_radar2 + 1) % VELOCITY_BUFFER_SIZE;
+
+    if (velocity_buffer_index_radar2 == 0 && velocity_buffer_filled_radar2 == 0) {
+        velocity_buffer_filled_radar2 = 1;
+    }
+
+    float32_t sum = 0.0f;
+    uint8_t count = velocity_buffer_filled_radar2 ? VELOCITY_BUFFER_SIZE : velocity_buffer_index_radar2;
+
+    if (count == 0) {
+        return new_value;
+    }
+
+    for (uint8_t i = 0; i < count; i++) {
+        sum += velocity_buffer_radar2[i];
+    }
+
+    return sum / count;
+}
 /* USER CODE END 4 */
 
 /**
