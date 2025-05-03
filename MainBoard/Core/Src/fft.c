@@ -79,6 +79,8 @@ static void mean_removal_float(float32_t *data, uint32_t len)
  *
  * @param [in,out]	complex input/output data
  */
+// 65536 * constants
+// use unit 16 to fit into 32 bit integer and shift right 16 bits
 static void hanning256_float(float32_t* data)
 {
 	static const float weights[128] = {
