@@ -103,6 +103,24 @@ float32_t velocity_average_radar2 = 0.0f;
 #define Speaker_En_GPIO_Port GPIOB
 #define Speaker_En_Pin GPIO_PIN_2
 
+// Audio generation variables
+uint32_t audio_timer_counter1 = 0;
+uint32_t audio_timer_counter2 = 0;
+uint32_t audio_toggle_period1 = 100;  // Default period (in timer ticks)
+uint32_t audio_toggle_period2 = 100;  // Default period (in timer ticks)
+uint8_t audio_state1 = 0;
+uint8_t audio_state2 = 0;
+
+#define MIN_VELOCITY 0.0f
+#define MAX_VELOCITY 5.0f
+
+// Add these new variables
+uint16_t radar1_period = 16;  // Default period (in PWM cycles)
+uint16_t radar2_period = 16;  // Default period (in PWM cycles)
+uint16_t radar1_counter = 0;
+uint16_t radar2_counter = 0;
+uint16_t radar1_value = 0;
+uint16_t radar2_value = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -113,6 +131,7 @@ static void MX_USART2_UART_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_TIM3_Init(void);
 static void MX_TIM2_Init(void);
+void update_audio_parameters(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -131,12 +150,31 @@ PUTCHAR_PROTOTYPE
   return ch;
 }
 
+//void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim) {
+//	if (htim == &htim2) {
+//		static int sample_idx = 0;
+//		TIM2->CCR3 = (sample_idx & 15) << 6; // Saw tooth ~ 20k / 16 Hz
+//		sample_idx++;
+//	}
+//}
 void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim) {
-	if (htim == &htim2) {
-		static int sample_idx = 0;
-		TIM2->CCR3 = (sample_idx & 15) << 6; // Saw tooth ~ 20k / 16 Hz
-		sample_idx++;
-	}
+    if (htim == &htim2) {
+        // Radar 1 audio generation
+        radar1_counter++;
+        if (radar1_counter >= radar1_period) {
+            radar1_counter = 0;
+            radar1_value = (radar1_value + 64) & 0x3F0; // Increment by 64, wrap at 1024, keep aligned to 64
+        }
+        TIM2->CCR3 = radar1_value;
+
+        // Radar 2 audio generation
+        radar2_counter++;
+        if (radar2_counter >= radar2_period) {
+            radar2_counter = 0;
+            radar2_value = (radar2_value + 64) & 0x3F0; // Increment by 64, wrap at 1024, keep aligned to 64
+        }
+        TIM2->CCR4 = radar2_value;
+    }
 }
 /* USER CODE END 0 */
 
@@ -208,7 +246,6 @@ int main(void)
 	  velocity_buffer_radar2[i] = 0.0f;
   }
 
-
   HAL_TIM_PWM_Start_IT(&htim2, TIM_CHANNEL_3);
   HAL_TIM_PWM_Start_IT(&htim2, TIM_CHANNEL_4);
 
@@ -238,7 +275,7 @@ int main(void)
 		  printf("\r\n");
 	  }
 	  printf("\r\n");
-
+	  update_audio_parameters();
 	  HAL_Delay(100);
     /* USER CODE END WHILE */
 
@@ -619,71 +656,32 @@ void sendDataToMonitor(float32_t vel) {
 	printf("DATA,%.5f\n", vel);
 }
 
-float32_t calculate_rolling_average_with_filtering1(float32_t new_value) {
-    // Set threshold for outlier detection (adjust based on your expected velocity range)
-    float32_t max_deviation = 20.0f; // Maximum allowed deviation from current average
+void update_audio_parameters() {
+    // Map velocities to periods (inversely proportional to frequency)
+    float32_t vel1 = fabsf(target_velocity_radar1);
+    float32_t vel2 = fabsf(target_velocity_radar2);
 
-    // If we have a previous average and the new value deviates too much, reject it
-    if (velocity_buffer_filled_radar1 && fabsf(new_value - velocity_average_radar1) > max_deviation) {
-        // Outlier detected, don't add to buffer
-        //printf("Outlier rejected: %.5f (current avg: %.5f)\r\n", new_value, velocity_average_radar1);
-        return velocity_average_radar1; // Return previous average
+    // Limit velocity values
+    if (vel1 < MIN_VELOCITY) vel1 = MIN_VELOCITY;
+    if (vel1 > MAX_VELOCITY) vel1 = MAX_VELOCITY;
+    if (vel2 < MIN_VELOCITY) vel2 = MIN_VELOCITY;
+    if (vel2 > MAX_VELOCITY) vel2 = MAX_VELOCITY;
+
+    // Map velocity to period (higher velocity = lower period = higher frequency)
+    // 32 is slowest tone (low pitch), 4 is fastest tone (high pitch)
+    float32_t normalized1 = (vel1 - MIN_VELOCITY) / (MAX_VELOCITY - MIN_VELOCITY);
+    float32_t normalized2 = (vel2 - MIN_VELOCITY) / (MAX_VELOCITY - MIN_VELOCITY);
+
+    radar1_period = 32 - (uint16_t)(normalized1 * 28); // Range from 32 down to 4
+    radar2_period = 32 - (uint16_t)(normalized2 * 28); // Range from 32 down to 4
+
+    // Print debug info occasionally
+    static uint8_t debug_counter = 0;
+    if (++debug_counter >= 10) {
+        debug_counter = 0;
+        printf("Audio: V1=%.2f,P1=%u | V2=%.2f,P2=%u\r\n",
+               vel1, radar1_period, vel2, radar2_period);
     }
-
-    // Regular rolling average calculation
-    velocity_buffer_radar1[velocity_buffer_index_radar1] = new_value;
-    velocity_buffer_index_radar1 = (velocity_buffer_index_radar1 + 1) % VELOCITY_BUFFER_SIZE;
-
-    if (velocity_buffer_index_radar1 == 0 && velocity_buffer_filled_radar1 == 0) {
-        velocity_buffer_filled_radar1 = 1;
-    }
-
-    float32_t sum = 0.0f;
-    uint8_t count = velocity_buffer_filled_radar1 ? VELOCITY_BUFFER_SIZE : velocity_buffer_index_radar1;
-
-    if (count == 0) {
-        return new_value;
-    }
-
-    for (uint8_t i = 0; i < count; i++) {
-        sum += velocity_buffer_radar1[i];
-    }
-
-    return sum / count;
-}
-
-
-float32_t calculate_rolling_average_with_filtering2(float32_t new_value) {
-    // Set threshold for outlier detection (adjust based on your expected velocity range)
-    float32_t max_deviation = 20.0f; // Maximum allowed deviation from current average
-
-    // If we have a previous average and the new value deviates too much, reject it
-    if (velocity_buffer_filled_radar2 && fabsf(new_value - velocity_average_radar2) > max_deviation) {
-        // Outlier detected, don't add to buffer
-        //printf("Outlier rejected: %.5f (current avg: %.5f)\r\n", new_value, velocity_average_radar2);
-        return velocity_average_radar2; // Return previous average
-    }
-
-    // Regular rolling average calculation
-    velocity_buffer_radar2[velocity_buffer_index_radar2] = new_value;
-    velocity_buffer_index_radar2 = (velocity_buffer_index_radar2 + 1) % VELOCITY_BUFFER_SIZE;
-
-    if (velocity_buffer_index_radar2 == 0 && velocity_buffer_filled_radar2 == 0) {
-        velocity_buffer_filled_radar2 = 1;
-    }
-
-    float32_t sum = 0.0f;
-    uint8_t count = velocity_buffer_filled_radar2 ? VELOCITY_BUFFER_SIZE : velocity_buffer_index_radar2;
-
-    if (count == 0) {
-        return new_value;
-    }
-
-    for (uint8_t i = 0; i < count; i++) {
-        sum += velocity_buffer_radar2[i];
-    }
-
-    return sum / count;
 }
 /* USER CODE END 4 */
 
