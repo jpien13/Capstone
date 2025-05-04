@@ -563,53 +563,47 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
     if (htim == &htim3) {
-        // Alternate between radars (could also use a counter to give equal time)
-        static uint8_t current_radar = RADAR_1;
+        // Process both radars in the same interrupt
 
-        if (current_radar == RADAR_1) {
-            // Process Radar 1
-            if (acquired_sample_count_radar1 < FFT_BUFFER_SIZE) {
-                if (bgt60ltr11_get_RAW_data(RADAR_1, &IFI_radar1, &IFQ_radar1) == HAL_OK) {
-                    if (IFI_radar1 <= 0x3FC && IFQ_radar1 <= 0x3FC) {
-                        active_buffer_radar1[2 * acquired_sample_count_radar1] =  (float32_t)(IFI_radar1 >> 2) / 255.0f;
-                        active_buffer_radar1[2 * acquired_sample_count_radar1 + 1] = (float32_t)(IFQ_radar1 >> 2) / 255.0f;
-                        acquired_sample_count_radar1++;
-                    }
-                } else {
-                    error_cnt++;
+        // Process Radar 1
+        if (acquired_sample_count_radar1 < FFT_BUFFER_SIZE) {
+            if (bgt60ltr11_get_RAW_data(RADAR_1, &IFI_radar1, &IFQ_radar1) == HAL_OK) {
+                if (IFI_radar1 <= 0x3FC && IFQ_radar1 <= 0x3FC) {
+                    active_buffer_radar1[2 * acquired_sample_count_radar1] = (float32_t)(IFI_radar1 >> 2) / 255.0f;
+                    active_buffer_radar1[2 * acquired_sample_count_radar1 + 1] = (float32_t)(IFQ_radar1 >> 2) / 255.0f;
+                    acquired_sample_count_radar1++;
                 }
             } else {
-                // Buffer full, swap buffers
-                float32_t *temp = active_buffer_radar1;
-                active_buffer_radar1 = processing_buffer_radar1;
-                processing_buffer_radar1 = temp;
-                data_ready_f_radar1 = 1;
-                acquired_sample_count_radar1 = 0;
+                error_cnt++;
             }
         } else {
-            // Process Radar 2
-            if (acquired_sample_count_radar2 < FFT_BUFFER_SIZE) {
-                if (bgt60ltr11_get_RAW_data(RADAR_2, &IFI_radar2, &IFQ_radar2) == HAL_OK) {
-                    if (IFI_radar2 <= 0x3FC && IFQ_radar2 <= 0x3FC) {
-                        active_buffer_radar2[2 * acquired_sample_count_radar2] = (float32_t)(IFI_radar2 >> 2) / 255.0f;
-                        active_buffer_radar2[2 * acquired_sample_count_radar2 + 1] = (float32_t)(IFQ_radar2 >> 2) / 255.0f;
-                        acquired_sample_count_radar2++;
-                    }
-                } else {
-                    error_cnt++;
-                }
-            } else {
-                // Buffer full, swap buffers
-                float32_t *temp = active_buffer_radar2;
-                active_buffer_radar2 = processing_buffer_radar2;
-                processing_buffer_radar2 = temp;
-                data_ready_f_radar2 = 1;
-                acquired_sample_count_radar2 = 0;
-            }
+            // Buffer full, swap buffers
+            float32_t *temp = active_buffer_radar1;
+            active_buffer_radar1 = processing_buffer_radar1;
+            processing_buffer_radar1 = temp;
+            data_ready_f_radar1 = 1;
+            acquired_sample_count_radar1 = 0;
         }
 
-        // Toggle between radars
-        current_radar = (current_radar == RADAR_1) ? RADAR_2 : RADAR_1;
+        // Process Radar 2
+        if (acquired_sample_count_radar2 < FFT_BUFFER_SIZE) {
+            if (bgt60ltr11_get_RAW_data(RADAR_2, &IFI_radar2, &IFQ_radar2) == HAL_OK) {
+                if (IFI_radar2 <= 0x3FC && IFQ_radar2 <= 0x3FC) {
+                    active_buffer_radar2[2 * acquired_sample_count_radar2] = (float32_t)(IFI_radar2 >> 2) / 255.0f;
+                    active_buffer_radar2[2 * acquired_sample_count_radar2 + 1] = (float32_t)(IFQ_radar2 >> 2) / 255.0f;
+                    acquired_sample_count_radar2++;
+                }
+            } else {
+                error_cnt++;
+            }
+        } else {
+            // Buffer full, swap buffers
+            float32_t *temp = active_buffer_radar2;
+            active_buffer_radar2 = processing_buffer_radar2;
+            processing_buffer_radar2 = temp;
+            data_ready_f_radar2 = 1;
+            acquired_sample_count_radar2 = 0;
+        }
     }
 }
 
