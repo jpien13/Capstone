@@ -236,6 +236,7 @@ int main(void)
 	  } else {
 		  printf("\r\n");
 	  }
+	  printf("\r\n");
 
 	  HAL_Delay(100);
     /* USER CODE END WHILE */
