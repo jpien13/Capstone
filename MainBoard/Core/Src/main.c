@@ -176,7 +176,7 @@ int main(void)
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
 
-  //HAL_GPIO_WritePin(Speaker_En_GPIO_Port, Speaker_En_Pin, GPIO_PIN_SET);   // Enable the speaker
+  HAL_GPIO_WritePin(Speaker_En_GPIO_Port, Speaker_En_Pin, GPIO_PIN_SET);   // Enable the speaker
 
   // Initialize CS pins
   HAL_GPIO_WritePin(RADAR1_CS_PORT, RADAR1_CS_PIN, GPIO_PIN_SET);   // Radar 1 CS high
@@ -210,6 +210,7 @@ int main(void)
 
 
   HAL_TIM_PWM_Start_IT(&htim2, TIM_CHANNEL_3);
+  HAL_TIM_PWM_Start_IT(&htim2, TIM_CHANNEL_4);
 
   /* USER CODE END 2 */
 
@@ -384,6 +385,10 @@ static void MX_TIM2_Init(void)
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
   if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_4) != HAL_OK)
   {
     Error_Handler();
   }
