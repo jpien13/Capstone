@@ -6,6 +6,7 @@
  */
 
 #include "fft.h"
+#include "arm_math.h"
 
 #define SAMPLING_RATE 1000.0f  // Sampling rate in Hz
 #define TEST_FREQUENCY 50.0f   // Test sine wave frequency in Hz

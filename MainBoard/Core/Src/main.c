@@ -176,7 +176,7 @@ int main(void)
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
 
-  HAL_GPIO_WritePin(Speaker_En_GPIO_Port, Speaker_En_Pin, GPIO_PIN_SET);   // Enable the speaker
+  //HAL_GPIO_WritePin(Speaker_En_GPIO_Port, Speaker_En_Pin, GPIO_PIN_SET);   // Enable the speaker
 
   // Initialize CS pins
   HAL_GPIO_WritePin(RADAR1_CS_PORT, RADAR1_CS_PIN, GPIO_PIN_SET);   // Radar 1 CS high
@@ -319,7 +319,7 @@ static void MX_SPI1_Init(void)
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
