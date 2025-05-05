@@ -138,13 +138,13 @@ PUTCHAR_PROTOTYPE
   return ch;
 }
 
-void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim) {
-	if (htim == &htim2) {
-		static int sample_idx = 0;
-		TIM2->CCR3 = (sample_idx & 15) << 6; // Saw tooth ~ 20k / 16 Hz
-		sample_idx++;
-	}
-}
+//void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim) {
+//	if (htim == &htim2) {
+//		static int sample_idx = 0;
+//		TIM2->CCR3 = (sample_idx & 15) << 6; // Saw tooth ~ 20k / 16 Hz
+//		sample_idx++;
+//	}
+//}
 /* USER CODE END 0 */
 
 /**
@@ -184,8 +184,6 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   HAL_GPIO_WritePin(Speaker_En_GPIO_Port, Speaker_En_Pin, GPIO_PIN_SET);   // Enable the speaker
-  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_3); // Start PWM on TIM2 Channel 3 (PB10)
-  TIM2->CCR3 = 512; // 50% duty cycle for starting
 
   // Initialize CS pins
   HAL_GPIO_WritePin(RADAR1_CS_PORT, RADAR1_CS_PIN, GPIO_PIN_SET);   // Radar 1 CS high
@@ -226,41 +224,28 @@ int main(void)
 	  // Process Radar 1 data when ready
 	  if (radar1_initialized && data_ready_f_radar1) {
 		  fft256_spectrum(processing_buffer_radar1);
+
+		  visualize_129_frequencies(processing_buffer_radar1, 129, 1);
+
 		  find_peak_frequency(processing_buffer_radar1, FFT_BUFFER_SIZE, 1000, &peak_index_radar1, &max_value_radar1, &target_velocity_radar1);
-		  printf("Radar 1 - velocity: %.5f m/s\t", target_velocity_radar1);
+		  //printf("Radar 1 - velocity: %.5f m/s\t", target_velocity_radar1);
 		  data_ready_f_radar1 = 0;
 	  } else {
-		  printf("%-35s", "");
+		  //printf("%-35s", "");
 	  }
 
 	  // Process Radar 2 data when ready
 	  if (radar2_initialized && data_ready_f_radar2) {
 		  fft256_spectrum(processing_buffer_radar2);
 		  find_peak_frequency(processing_buffer_radar2, FFT_BUFFER_SIZE, 1000, &peak_index_radar2, &max_value_radar2, &target_velocity_radar2);
-		  printf("Radar 2 - velocity: %.5f m/s", target_velocity_radar2);
+		  //printf("Radar 2 - velocity: %.5f m/s", target_velocity_radar2);
 		  data_ready_f_radar2 = 0;
 	  } else {
-		  printf("\r\n");
+		  //printf("\r\n");
 	  }
-	  printf("\r\n");
+	  //printf("\r\n");
 
-	  // Update Doppler sound every 10ms
-	  uint32_t currentTime = HAL_GetTick();
-	  if(currentTime - lastAudioUpdateTime >= 10) {
-			lastAudioUpdateTime = currentTime;
-			currentFrequency = BASE_FREQUENCY + (target_velocity_radar1 * DOPPLER_SENSITIVITY);
 
-			// Keeps frequency to safe range
-			if(currentFrequency < MIN_FREQUENCY) currentFrequency = MIN_FREQUENCY;
-			if(currentFrequency > MAX_FREQUENCY) currentFrequency = MAX_FREQUENCY;
-
-			uint32_t newPeriod = (uint32_t)(32000000.0f / currentFrequency) - 1;
-			__HAL_TIM_SET_AUTORELOAD(&htim2, newPeriod);
-
-			static uint8_t wave_step = 0;
-			TIM2->CCR3 = (wave_step & 15) << 6;
-			wave_step++;
-	  }
 	  HAL_Delay(100);
     /* USER CODE END WHILE */
 

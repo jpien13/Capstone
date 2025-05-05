@@ -203,7 +203,7 @@ static void generate_sine_wave(float32_t* data, uint32_t len) {
         data[2 * i + 1] = 0.0f;  // Imaginary part
     }
 }
-
+//  .,-+=08
 
 void find_peak_frequency(const float32_t *spectrum, uint32_t fft_size, float32_t sampling_rate, float32_t *peak_freq, float32_t *peak_value, float32_t *target_velocity)
 {
