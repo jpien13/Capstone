@@ -103,13 +103,17 @@ float32_t velocity_average_radar2 = 0.0f;
 #define Speaker_En_GPIO_Port GPIOB
 #define Speaker_En_Pin GPIO_PIN_2
 
-#define BASE_FREQUENCY 800       // Base frequency in Hz
-#define DOPPLER_SENSITIVITY 50   // How much the frequency changes per m/s of velocity
-#define MIN_FREQUENCY 400        // Minimum frequency in Hz
-#define MAX_FREQUENCY 1600       // Maximum frequency in Hz
-uint32_t lastAudioUpdateTime = 0;
-float currentFrequency = BASE_FREQUENCY;
 
+#define MIN_FREQ 50
+#define MAX_FREQ 2000
+#define PWM_FREQ 20000
+
+
+int speaker_counter = 0;
+int speaker_half_period = 0;
+int speaker_state = 0;
+
+int update_counter = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -138,13 +142,6 @@ PUTCHAR_PROTOTYPE
   return ch;
 }
 
-//void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim) {
-//	if (htim == &htim2) {
-//		static int sample_idx = 0;
-//		TIM2->CCR3 = (sample_idx & 15) << 6; // Saw tooth ~ 20k / 16 Hz
-//		sample_idx++;
-//	}
-//}
 /* USER CODE END 0 */
 
 /**
@@ -183,6 +180,7 @@ int main(void)
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
 
+
   HAL_GPIO_WritePin(Speaker_En_GPIO_Port, Speaker_En_Pin, GPIO_PIN_SET);   // Enable the speaker
 
   // Initialize CS pins
@@ -215,6 +213,11 @@ int main(void)
 	  velocity_buffer_radar2[i] = 0.0f;
   }
 
+
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_3);  // Speaker 1 (PB10)
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_4);  // Speaker 2 (PB11)
+  HAL_TIM_Base_Start_IT(&htim2);  // For square wave generation
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -225,10 +228,11 @@ int main(void)
 	  if (radar1_initialized && data_ready_f_radar1) {
 		  fft256_spectrum(processing_buffer_radar1);
 
-		  visualize_129_frequencies(processing_buffer_radar1, 129, 1);
+		  //visualize_129_frequencies(processing_buffer_radar1, 129, 1);
 
 		  find_peak_frequency(processing_buffer_radar1, FFT_BUFFER_SIZE, 1000, &peak_index_radar1, &max_value_radar1, &target_velocity_radar1);
-		  //printf("Radar 1 - velocity: %.5f m/s\t", target_velocity_radar1);
+		  printf("Radar 1 - velocity: %.5f m/s\t", target_velocity_radar1);
+		  //printf("peak1: %0.5f", peak_index_radar1);
 		  data_ready_f_radar1 = 0;
 	  } else {
 		  //printf("%-35s", "");
@@ -238,12 +242,13 @@ int main(void)
 	  if (radar2_initialized && data_ready_f_radar2) {
 		  fft256_spectrum(processing_buffer_radar2);
 		  find_peak_frequency(processing_buffer_radar2, FFT_BUFFER_SIZE, 1000, &peak_index_radar2, &max_value_radar2, &target_velocity_radar2);
-		  //printf("Radar 2 - velocity: %.5f m/s", target_velocity_radar2);
+		  printf("Radar 2 - velocity: %.5f m/s", target_velocity_radar2);
+		  //printf("peak2: %0.5f", peak_index_radar2);
 		  data_ready_f_radar2 = 0;
 	  } else {
-		  //printf("\r\n");
+		  printf("\r\n");
 	  }
-	  //printf("\r\n");
+	  printf("\r\n");
 
 
 	  HAL_Delay(100);
@@ -367,7 +372,7 @@ static void MX_TIM2_Init(void)
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim2.Init.Period = 1600-1;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
   {
     Error_Handler();
@@ -617,6 +622,36 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
             data_ready_f_radar2 = 1;
             acquired_sample_count_radar2 = 0;
         }
+    } else if(htim == &htim2){
+
+    	speaker_counter++;
+    	if (speaker_counter >= speaker_half_period) {
+			speaker_counter = 0;
+			speaker_state = !speaker_state;
+
+			if (speaker_state) {
+				TIM2->CCR3 = 8000; //on
+				TIM2->ARR = 16000;
+			} else {
+				TIM2->CCR3 = 800; //off
+				TIM2->ARR = 1600;
+			}
+		}
+
+		update_counter++;
+		if (update_counter >= 2000) {
+			update_counter = 0;
+
+			int freq1 = (int)peak_index_radar1;
+			int freq2 = (int)peak_index_radar2;
+
+			int freq = (freq1 > freq2) ? freq1 : freq2;
+
+			if (freq < MIN_FREQ) freq = MIN_FREQ;
+			if (freq > MAX_FREQ) freq = MAX_FREQ;
+
+			speaker_half_period = PWM_FREQ / (2 * freq);
+		}
     }
 }
 
@@ -626,72 +661,6 @@ void sendDataToMonitor(float32_t vel) {
 	printf("DATA,%.5f\n", vel);
 }
 
-float32_t calculate_rolling_average_with_filtering1(float32_t new_value) {
-    // Set threshold for outlier detection (adjust based on your expected velocity range)
-    float32_t max_deviation = 20.0f; // Maximum allowed deviation from current average
-
-    // If we have a previous average and the new value deviates too much, reject it
-    if (velocity_buffer_filled_radar1 && fabsf(new_value - velocity_average_radar1) > max_deviation) {
-        // Outlier detected, don't add to buffer
-        //printf("Outlier rejected: %.5f (current avg: %.5f)\r\n", new_value, velocity_average_radar1);
-        return velocity_average_radar1; // Return previous average
-    }
-
-    // Regular rolling average calculation
-    velocity_buffer_radar1[velocity_buffer_index_radar1] = new_value;
-    velocity_buffer_index_radar1 = (velocity_buffer_index_radar1 + 1) % VELOCITY_BUFFER_SIZE;
-
-    if (velocity_buffer_index_radar1 == 0 && velocity_buffer_filled_radar1 == 0) {
-        velocity_buffer_filled_radar1 = 1;
-    }
-
-    float32_t sum = 0.0f;
-    uint8_t count = velocity_buffer_filled_radar1 ? VELOCITY_BUFFER_SIZE : velocity_buffer_index_radar1;
-
-    if (count == 0) {
-        return new_value;
-    }
-
-    for (uint8_t i = 0; i < count; i++) {
-        sum += velocity_buffer_radar1[i];
-    }
-
-    return sum / count;
-}
-
-
-float32_t calculate_rolling_average_with_filtering2(float32_t new_value) {
-    // Set threshold for outlier detection (adjust based on your expected velocity range)
-    float32_t max_deviation = 20.0f; // Maximum allowed deviation from current average
-
-    // If we have a previous average and the new value deviates too much, reject it
-    if (velocity_buffer_filled_radar2 && fabsf(new_value - velocity_average_radar2) > max_deviation) {
-        // Outlier detected, don't add to buffer
-        //printf("Outlier rejected: %.5f (current avg: %.5f)\r\n", new_value, velocity_average_radar2);
-        return velocity_average_radar2; // Return previous average
-    }
-
-    // Regular rolling average calculation
-    velocity_buffer_radar2[velocity_buffer_index_radar2] = new_value;
-    velocity_buffer_index_radar2 = (velocity_buffer_index_radar2 + 1) % VELOCITY_BUFFER_SIZE;
-
-    if (velocity_buffer_index_radar2 == 0 && velocity_buffer_filled_radar2 == 0) {
-        velocity_buffer_filled_radar2 = 1;
-    }
-
-    float32_t sum = 0.0f;
-    uint8_t count = velocity_buffer_filled_radar2 ? VELOCITY_BUFFER_SIZE : velocity_buffer_index_radar2;
-
-    if (count == 0) {
-        return new_value;
-    }
-
-    for (uint8_t i = 0; i < count; i++) {
-        sum += velocity_buffer_radar2[i];
-    }
-
-    return sum / count;
-}
 /* USER CODE END 4 */
 
 /**

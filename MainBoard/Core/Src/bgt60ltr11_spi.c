@@ -381,7 +381,7 @@ uint8_t bgt60ltr11_pulsed_mode_init_extended_range(RadarId_t radar_id) {
 
 uint8_t bgt60ltr11_set_max_range(RadarId_t radar_id) {
     // 1. Set a low detector threshold for higher sensitivity (66 is the minimum recommended value)
-    if (bgt60ltr11_spi_write(radar_id, 0x02, 192) != HAL_OK) return HAL_ERROR;
+    if (bgt60ltr11_spi_write(radar_id, 0x02, 500) != HAL_OK) return HAL_ERROR;
 
     // 2. Set maximum MPA gain (Reg7[2:0] = 7) to 4.5 dBm
     uint16_t reg7_value;
