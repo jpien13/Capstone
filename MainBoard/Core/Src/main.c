@@ -103,17 +103,53 @@ float32_t velocity_average_radar2 = 0.0f;
 #define Speaker_En_GPIO_Port GPIOB
 #define Speaker_En_Pin GPIO_PIN_2
 
-
 #define MIN_FREQ 50
 #define MAX_FREQ 2000
 #define PWM_FREQ 20000
+#define SINE_STEPS 32  // Number of steps in our sine lookup table
 
+// Sine lookup table (32 values for one complete sine wave cycle)
+// Values are scaled to fit PWM range (0-1600)
+const uint16_t sine_table[SINE_STEPS] = {
+    800,  // 0°     (50% duty cycle for middle point)
+    991,  // 11.25°
+    1175, // 22.5°
+    1345, // 33.75°
+    1491, // 45°
+    1608, // 56.25°
+    1688, // 67.5°
+    1727, // 78.75°
+    1727, // 90°    (peak value)
+    1688, // 101.25°
+    1608, // 112.5°
+    1491, // 123.75°
+    1345, // 135°
+    1175, // 146.25°
+    991,  // 157.5°
+    800,  // 168.75°
+    608,  // 180°   (50% duty cycle for middle point)
+    417,  // 191.25°
+    233,  // 202.5°
+    63,   // 213.75°
+    0,    // 225°   (minimum value)
+    0,    // 236.25°
+    0,    // 247.5°
+    0,    // 258.75°
+    0,    // 270°   (minimum value)
+    0,    // 281.25°
+    0,    // 292.5°
+    63,   // 303.75°
+    233,  // 315°
+    417,  // 326.25°
+    608,  // 337.5°
+    800   // 348.75°
+};
 
-int speaker_counter = 0;
-int speaker_half_period = 0;
-int speaker_state = 0;
+uint8_t sine_index = 0;        // Current position in sine table
+int step_counter = 0;          // Counter for timing sine wave steps
+int steps_per_cycle = 0;       // How many timer ticks between sine table updates
+int update_counter = 0;        // Counter for frequency updates
 
-int update_counter = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -213,6 +249,8 @@ int main(void)
 	  velocity_buffer_radar2[i] = 0.0f;
   }
 
+  __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, sine_table[0]);
+  __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, sine_table[0]);
 
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_3);  // Speaker 1 (PB10)
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_4);  // Speaker 2 (PB11)
@@ -624,18 +662,16 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
         }
     } else if(htim == &htim2){
 
-    	speaker_counter++;
-    	if (speaker_counter >= speaker_half_period) {
-			speaker_counter = 0;
-			speaker_state = !speaker_state;
+    	step_counter++;
 
-			if (speaker_state) {
-				TIM2->CCR3 = 8000; //on
-				TIM2->ARR = 16000;
-			} else {
-				TIM2->CCR3 = 800; //off
-				TIM2->ARR = 1600;
-			}
+    	if (step_counter >= steps_per_cycle) {
+			step_counter = 0;
+
+			sine_index = (sine_index + 1) % SINE_STEPS;
+
+			TIM2->CCR3 = sine_table[sine_index];
+			TIM2->CCR4 = sine_table[sine_index];
+
 		}
 
 		update_counter++;
@@ -650,7 +686,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 			if (freq < MIN_FREQ) freq = MIN_FREQ;
 			if (freq > MAX_FREQ) freq = MAX_FREQ;
 
-			speaker_half_period = PWM_FREQ / (2 * freq);
+			steps_per_cycle = PWM_FREQ / (freq * SINE_STEPS);
+			if (steps_per_cycle < 1) steps_per_cycle = 1;
 		}
     }
 }
