@@ -211,6 +211,8 @@ void find_peak_frequency(const float32_t *spectrum, uint32_t fft_size, float32_t
     uint32_t peak_index = 0;
     bool first = true;
 
+    const float32_t AMPLITUDE_THRESHOLD = 2.0f;
+
     // Ensure fft_size is valid
 	if (fft_size == 0 || spectrum == NULL || peak_freq == NULL || peak_value == NULL || target_velocity == NULL) {
 		printf("GOT BAD DATA!!!\r\n");
@@ -226,18 +228,25 @@ void find_peak_frequency(const float32_t *spectrum, uint32_t fft_size, float32_t
     }
 
     *peak_value = max_value;
-    *peak_freq = (sampling_rate * peak_index) / fft_size;
-    //*target_velocity = (*peak_freq) *  3.6f *LAMBDA / 2.0f;
 
-    // Handle velocity direction
-	float32_t nyquist_freq = sampling_rate / 2.0f; // Nyquist frequency
-	if (*peak_freq <= nyquist_freq) {
-		// Approaching: positive velocity
-		*target_velocity = (*peak_freq) * LAMBDA / 2.0f; // Convert to km/h if needed
+    if (max_value > AMPLITUDE_THRESHOLD) {
+		*peak_freq = (sampling_rate * peak_index) / fft_size;
+
+		// Handle velocity direction
+		float32_t nyquist_freq = sampling_rate / 2.0f;
+		if (*peak_freq <= nyquist_freq) {
+			// Approaching: positive velocity
+			*target_velocity = (*peak_freq) * LAMBDA / 2.0f;
+		} else {
+			// Departing: negative velocity
+			float32_t adjusted_freq = sampling_rate - *peak_freq;
+			*target_velocity = -adjusted_freq * LAMBDA / 2.0f;
+		}
 	} else {
-		// Departing: negative velocity
-		float32_t adjusted_freq = sampling_rate - *peak_freq; // Fold frequency into [0, fs/2]
-		*target_velocity = -adjusted_freq * LAMBDA / 2.0f; // Negative sign for departing
+		// No valid peak detected
+		*peak_freq = 0.0f;
+		*target_velocity = 0.0f;
+		printf("No significant motion detected (noise level)\r\n");
 	}
 }
 

@@ -678,13 +678,15 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 		if (update_counter >= 2000) {
 			update_counter = 0;
 
-			int freq1 = (int)peak_index_radar1;
-			int freq2 = (int)peak_index_radar2;
+			int freq = MIN_FREQ;  // Default to minimum frequency
+			if (target_velocity_radar1 != 0.0f || target_velocity_radar2 != 0.0f) {
+				int freq1 = (target_velocity_radar1 != 0.0f) ? (int)peak_index_radar1 : 0;
+				int freq2 = (target_velocity_radar2 != 0.0f) ? (int)peak_index_radar2 : 0;
 
-			int freq = (freq1 > freq2) ? freq1 : freq2;
-
-			if (freq < MIN_FREQ) freq = MIN_FREQ;
-			if (freq > MAX_FREQ) freq = MAX_FREQ;
+				freq = (freq1 > freq2) ? freq1 : freq2;
+				if (freq < MIN_FREQ) freq = MIN_FREQ;
+				if (freq > MAX_FREQ) freq = MAX_FREQ;
+			}
 
 			steps_per_cycle = PWM_FREQ / (freq * SINE_STEPS);
 			if (steps_per_cycle < 1) steps_per_cycle = 1;
