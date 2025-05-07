@@ -111,38 +111,38 @@ float32_t velocity_average_radar2 = 0.0f;
 // Sine lookup table (32 values for one complete sine wave cycle)
 // Values are scaled to fit PWM range (0-1600)
 const uint16_t sine_table[SINE_STEPS] = {
-    800,  // 0°     (50% duty cycle for middle point)
-    991,  // 11.25°
-    1175, // 22.5°
-    1345, // 33.75°
-    1491, // 45°
-    1608, // 56.25°
-    1688, // 67.5°
-    1727, // 78.75°
-    1727, // 90°    (peak value)
-    1688, // 101.25°
-    1608, // 112.5°
-    1491, // 123.75°
-    1345, // 135°
-    1175, // 146.25°
-    991,  // 157.5°
-    800,  // 168.75°
-    608,  // 180°   (50% duty cycle for middle point)
-    417,  // 191.25°
-    233,  // 202.5°
-    63,   // 213.75°
-    0,    // 225°   (minimum value)
-    0,    // 236.25°
-    0,    // 247.5°
-    0,    // 258.75°
-    0,    // 270°   (minimum value)
-    0,    // 281.25°
-    0,    // 292.5°
-    63,   // 303.75°
-    233,  // 315°
-    417,  // 326.25°
-    608,  // 337.5°
-    800   // 348.75°
+    800,
+    991,
+    1175,
+    1345,
+    1491,
+    1608,
+    1688,
+    1727,
+    1727,
+    1688,
+    1608,
+    1491,
+    1345,
+    1175,
+    991,
+    800,
+    608,
+    417,
+    233,
+    63,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    63,
+    233,
+    417,
+    608,
+    800
 };
 
 uint8_t sine_index = 0;        // Current position in sine table
@@ -662,24 +662,32 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
         }
     } else if(htim == &htim2){
 
+    	// every interrupt (clk/1600) it increases step
     	step_counter++;
 
     	if (step_counter >= steps_per_cycle) {
+    		// if step is steps_per_cycle, Moves to the next position in the sine wave table
 			step_counter = 0;
 
 			sine_index = (sine_index + 1) % SINE_STEPS;
 
+			// Updates PWM outputs to both speakers
 			TIM2->CCR3 = sine_table[sine_index];
 			TIM2->CCR4 = sine_table[sine_index];
 
 		}
 
 		update_counter++;
+		// Every 2000 interrupts:
+		// Reads the latest peak frequency from radar processing
+		// Recalculates steps_per_cycle to set the audio tone frequency
+
 		if (update_counter >= 2000) {
 			update_counter = 0;
 
 			int freq = MIN_FREQ;  // Default to minimum frequency
 			if (target_velocity_radar1 != 0.0f || target_velocity_radar2 != 0.0f) {
+
 				int freq1 = (target_velocity_radar1 != 0.0f) ? (int)peak_index_radar1 : 0;
 				int freq2 = (target_velocity_radar2 != 0.0f) ? (int)peak_index_radar2 : 0;
 
