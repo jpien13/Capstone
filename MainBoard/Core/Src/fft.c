@@ -211,7 +211,7 @@ void find_peak_frequency(const float32_t *spectrum, uint32_t fft_size, float32_t
     uint32_t peak_index = 0;
     bool first = true;
 
-    const float32_t AMPLITUDE_THRESHOLD = 8.0f;
+    const float32_t AMPLITUDE_THRESHOLD = 4.0f;
 
     // Ensure fft_size is valid
 	if (fft_size == 0 || spectrum == NULL || peak_freq == NULL || peak_value == NULL || target_velocity == NULL) {
