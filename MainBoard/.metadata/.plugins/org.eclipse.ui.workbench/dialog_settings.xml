@@ -9,4 +9,8 @@
 			<item key="DIALOG_FONT_NAME" value="1|.AppleSystemUIFont|11.0|0|COCOA|1|.AppleSystemUIFont"/>
 		</section>
 	</section>
+	<section name="ImportExportAction">
+		<section name="ImportExportWizard.dialogBounds">
+		</section>
+	</section>
 </section>

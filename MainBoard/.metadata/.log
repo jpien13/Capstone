@@ -73,3 +73,45 @@ Command-line arguments:  -os macosx -ws cocoa -arch x86_64 -keyring /Users/jason
 
 !ENTRY com.st.stm32cube.ide.mcu.ide 1 1 2025-05-05 13:03:21.081
 !MESSAGE Started RMI Server, listening on port 41340
+!SESSION 2025-05-09 13:59:10.309 -----------------------------------------------
+eclipse.buildId=Version 1.18.1
+java.version=21.0.3
+java.vendor=Eclipse Adoptium
+BootLoader constants: OS=macosx, ARCH=x86_64, WS=cocoa, NL=en_US
+Framework arguments:  -keyring /Users/jasonpien/.eclipse_keyring
+Command-line arguments:  -os macosx -ws cocoa -arch x86_64 -keyring /Users/jasonpien/.eclipse_keyring
+
+!ENTRY com.st.stm32cube.ide.mcu.informationcenter 1 1 2025-05-09 13:59:22.714
+!MESSAGE Log4j2 initialized with config file /Users/jasonpien/git/MainBoard/MainBoard/.metadata/.log4j2.xml
+
+!ENTRY com.st.stm32cube.ide.mcu.ide 1 1 2025-05-09 13:59:30.862
+!MESSAGE Started RMI Server, listening on port 41337
+!SESSION 2025-05-09 14:00:10.949 -----------------------------------------------
+eclipse.buildId=Version 1.18.1
+java.version=21.0.3
+java.vendor=Eclipse Adoptium
+BootLoader constants: OS=macosx, ARCH=x86_64, WS=cocoa, NL=en_US
+Framework arguments:  -keyring /Users/jasonpien/.eclipse_keyring
+Command-line arguments:  -os macosx -ws cocoa -arch x86_64 -keyring /Users/jasonpien/.eclipse_keyring -data /Users/jasonpien/git/MainBoard/MainBoard
+
+!ENTRY com.st.stm32cube.ide.mcu.informationcenter 1 1 2025-05-09 14:00:18.581
+!MESSAGE Log4j2 initialized with config file /Users/jasonpien/git/MainBoard/MainBoard/.metadata/.log4j2.xml
+
+!ENTRY com.st.stm32cube.ide.mcu.ide 1 1 2025-05-09 14:00:25.571
+!MESSAGE Started RMI Server, listening on port 41338
+
+!ENTRY org.eclipse.ui.ide 4 0 2025-05-09 14:03:08.730
+!MESSAGE Could not import project located at /Users/jasonpien/git/MainBoard/MainBoard
+!STACK 0
+org.eclipse.ui.internal.wizards.datatransfer.CouldNotImportProjectException: Could not import project located at /Users/jasonpien/git/MainBoard/MainBoard
+	at org.eclipse.ui.internal.wizards.datatransfer.SmartImportJob.toExistingOrNewProject(SmartImportJob.java:555)
+	at org.eclipse.ui.internal.wizards.datatransfer.SmartImportJob.run(SmartImportJob.java:246)
+	at org.eclipse.core.internal.jobs.Worker.run(Worker.java:63)
+Caused by: org.eclipse.core.internal.resources.ResourceException: Invalid project description.
+	at org.eclipse.core.internal.resources.Project.checkDescription(Project.java:211)
+	at org.eclipse.core.internal.resources.Project.assertCreateRequirements(Project.java:95)
+	at org.eclipse.core.internal.resources.Project.create(Project.java:305)
+	at org.eclipse.core.internal.resources.Project.create(Project.java:291)
+	at org.eclipse.ui.internal.wizards.datatransfer.SmartImportJob.createOrImportProject(SmartImportJob.java:594)
+	at org.eclipse.ui.internal.wizards.datatransfer.SmartImportJob.toExistingOrNewProject(SmartImportJob.java:542)
+	... 2 more
