@@ -63,9 +63,9 @@ float32_t *active_buffer_radar1 = buffer1_radar1;
 float32_t *processing_buffer_radar1 = buffer2_radar1;
 uint16_t acquired_sample_count_radar1 = 0;
 uint8_t data_ready_f_radar1 = 0;
-extern float32_t peak_index_radar1;
+float32_t peak_index_radar1 = 0.0f;
 float32_t max_value_radar1 = 0.0f;
-extern float32_t target_velocity_radar1;
+float32_t target_velocity_radar1 = 0.0f;
 
 // Radar 2 data structures
 uint16_t IFI_radar2 = 0;
@@ -76,9 +76,9 @@ float32_t *active_buffer_radar2 = buffer1_radar2;
 float32_t *processing_buffer_radar2 = buffer2_radar2;
 uint16_t acquired_sample_count_radar2 = 0;
 uint8_t data_ready_f_radar2 = 0;
-extern peak_index_radar2;
+float32_t peak_index_radar2 = 0.0f;
 float32_t max_value_radar2 = 0.0f;
-extern target_velocity_radar2;
+float32_t target_velocity_radar2 = 0.0f;
 
 // Shared variables
 uint8_t radar1_initialized = 0;
@@ -103,59 +103,52 @@ float32_t velocity_average_radar2 = 0.0f;
 #define Speaker_En_GPIO_Port GPIOB
 #define Speaker_En_Pin GPIO_PIN_2
 
-//#define MIN_FREQ 50
-//#define MAX_FREQ 2000
-//#define PWM_FREQ 20000
-//#define SINE_STEPS 256  // Number of steps in our sine lookup table
-//
-//
-//static const uint16_t sine_table[SINE_STEPS] = {
-//800, 820, 839, 859, 878, 898, 917, 937,
-//956, 975, 994, 1013, 1032, 1051, 1070, 1088,
-//1106, 1124, 1142, 1160, 1177, 1194, 1211, 1228,
-//1244, 1261, 1277, 1292, 1308, 1323, 1337, 1352,
-//1366, 1379, 1393, 1406, 1418, 1431, 1443, 1454,
-//1465, 1476, 1486, 1496, 1506, 1515, 1523, 1531,
-//1539, 1546, 1553, 1560, 1566, 1571, 1576, 1581,
-//1585, 1588, 1591, 1594, 1596, 1598, 1599, 1600,
-//1600, 1600, 1599, 1598, 1596, 1594, 1591, 1588,
-//1585, 1581, 1576, 1571, 1566, 1560, 1553, 1546,
-//1539, 1531, 1523, 1515, 1506, 1496, 1486, 1476,
-//1465, 1454, 1443, 1431, 1418, 1406, 1393, 1379,
-//1366, 1352, 1337, 1323, 1308, 1292, 1277, 1261,
-//1244, 1228, 1211, 1194, 1177, 1160, 1142, 1124,
-//1106, 1088, 1070, 1051, 1032, 1013, 994, 975,
-//956, 937, 917, 898, 878, 859, 839, 820,
-//800, 780, 761, 741, 722, 702, 683, 663,
-//644, 625, 606, 587, 568, 549, 530, 512,
-//494, 476, 458, 440, 423, 406, 389, 372,
-//356, 339, 323, 308, 292, 277, 263, 248,
-//234, 221, 207, 194, 182, 169, 157, 146,
-//135, 124, 114, 104, 94, 85, 77, 69,
-//61, 54, 47, 40, 34, 29, 24, 19,
-//15, 12, 9, 6, 4, 2, 1, 0,
-//0, 0, 1, 2, 4, 6, 9, 12,
-//15, 19, 24, 29, 34, 40, 47, 54,
-//61, 69, 77, 85, 94, 104, 114, 124,
-//135, 146, 157, 169, 182, 194, 207, 221,
-//234, 248, 263, 277, 292, 308, 323, 339,
-//356, 372, 389, 406, 423, 440, 458, 476,
-//494, 512, 530, 549, 568, 587, 606, 625,
-//644, 663, 683, 702, 722, 741, 761, 780};
-//
-//static uint32_t sine_index = 0;        // Current position in sine table
-//static uint32_t sine_inc = 0;
-////int step_counter = 0;          // Counter for timing sine wave steps
-////int steps_per_cycle = 0;       // How many timer ticks between sine table updates
-//static int update_counter = 0;        // Counter for frequency updates
-
-int curr_time = 0;
-int last_time;
-
 #define MIN_FREQ 50
 #define MAX_FREQ 2000
 #define PWM_FREQ 20000
-extern uint32_t sine_inc;
+#define SINE_STEPS 32  // Number of steps in our sine lookup table
+
+// Sine lookup table (32 values for one complete sine wave cycle)
+// Values are scaled to fit PWM range (0-1600)
+const uint16_t sine_table[SINE_STEPS] = {
+    800,
+    991,
+    1175,
+    1345,
+    1491,
+    1608,
+    1688,
+    1727,
+    1727,
+    1688,
+    1608,
+    1491,
+    1345,
+    1175,
+    991,
+    800,
+    608,
+    417,
+    233,
+    63,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    63,
+    233,
+    417,
+    608,
+    800
+};
+
+uint8_t sine_index = 0;        // Current position in sine table
+int step_counter = 0;          // Counter for timing sine wave steps
+int steps_per_cycle = 0;       // How many timer ticks between sine table updates
+int update_counter = 0;        // Counter for frequency updates
 
 /* USER CODE END PV */
 
@@ -256,16 +249,12 @@ int main(void)
 	  velocity_buffer_radar2[i] = 0.0f;
   }
 
+  __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, sine_table[0]);
+  __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, sine_table[0]);
+
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_3);  // Speaker 1 (PB10)
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_4);  // Speaker 2 (PB11)
   HAL_TIM_Base_Start_IT(&htim2);  // For square wave generation
-
-  peak_index_radar1 = 0.0f;
-  target_velocity_radar1 = 0.0f;
-  peak_index_radar2 = 0.0f;
-  target_velocity_radar2 = 0.0f;
-
-  sine_inc = (((uint64_t)1000)<<32)/PWM_FREQ;
 
   /* USER CODE END 2 */
 
@@ -298,27 +287,6 @@ int main(void)
 		  printf("\r\n");
 	  }
 	  printf("\r\n");
-
-//	  curr_time = HAL_GetTick();
-//	  if ((uint32_t)(curr_time-last_time) >= 250u)
-//	  {
-//		  // Reads the latest peak frequency from radar processing
-//		// Recalculates steps_per_cycle to set the audio tone frequency
-//		  	last_time = curr_time; //last_time += 250;
-//
-//			int freq = MIN_FREQ;  // Default to minimum frequency
-//			if (target_velocity_radar1 != 0.0f || target_velocity_radar2 != 0.0f) {
-//
-//				int freq1 = (target_velocity_radar1 != 0.0f) ? (int)peak_index_radar1 : 0;
-//				int freq2 = (target_velocity_radar2 != 0.0f) ? (int)peak_index_radar2 : 0;
-//
-//				freq = (freq1 > freq2) ? freq1 : freq2;
-//				if (freq < MIN_FREQ) freq = MIN_FREQ;
-//				if (freq > MAX_FREQ) freq = MAX_FREQ;
-//
-//				sine_inc = (((uint64_t)freq)<<32) / PWM_FREQ;
-//			}
-//		}
 
 
 	  HAL_Delay(100);
@@ -694,7 +662,43 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
         }
     } else if(htim == &htim2){
 
+    	// every interrupt (clk/1600) it increases step
+    	step_counter++;
 
+    	if (step_counter >= steps_per_cycle) {
+    		// if step is steps_per_cycle, Moves to the next position in the sine wave table
+			step_counter = 0;
+
+			sine_index = (sine_index + 1) % SINE_STEPS;
+
+			// Updates PWM outputs to both speakers
+			TIM2->CCR3 = sine_table[sine_index];
+			TIM2->CCR4 = sine_table[sine_index];
+
+		}
+
+		update_counter++;
+		// Every 2000 interrupts:
+		// Reads the latest peak frequency from radar processing
+		// Recalculates steps_per_cycle to set the audio tone frequency
+
+		if (update_counter >= 2000) {
+			update_counter = 0;
+
+			int freq = MIN_FREQ;  // Default to minimum frequency
+			if (target_velocity_radar1 != 0.0f || target_velocity_radar2 != 0.0f) {
+
+				int freq1 = (target_velocity_radar1 != 0.0f) ? (int)peak_index_radar1 : 0;
+				int freq2 = (target_velocity_radar2 != 0.0f) ? (int)peak_index_radar2 : 0;
+
+				freq = (freq1 > freq2) ? freq1 : freq2;
+				if (freq < MIN_FREQ) freq = MIN_FREQ;
+				if (freq > MAX_FREQ) freq = MAX_FREQ;
+			}
+
+			steps_per_cycle = PWM_FREQ / (freq * SINE_STEPS);
+			if (steps_per_cycle < 1) steps_per_cycle = 1;
+		}
     }
 }
 

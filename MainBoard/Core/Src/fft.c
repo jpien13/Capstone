@@ -115,6 +115,49 @@ static void hanning256_float(float32_t* data)
 	}
 }
 
+static const uint16_t hann_q16[128] = {
+      0,    40,   160,   360,   640,   997,  1433,  1945,
+   2533,  3195,  3929,  4734,  5607,  6547,  7551,  8617,
+   9741, 10922, 12157, 13442, 14774, 16151, 17568, 19022,
+  20510, 22027, 23572, 25138, 26723, 28324, 29935, 31552,
+  33173, 34793, 36408, 38014, 39607, 41184, 42740, 44271,
+  45774, 47246, 48682, 50079, 51434, 52743, 54003, 55211,
+  56364, 57460, 58495, 59467, 60374, 61213, 61983, 62681,
+  63306, 63856, 64330, 64727, 65046, 65286, 65446, 65526,
+  65526, 65446, 65286, 65046, 64727, 64330, 63856, 63306,
+  62681, 61983, 61213, 60374, 59467, 58495, 57460, 56364,
+  55211, 54003, 52743, 51434, 50079, 48682, 47246, 45774,
+  44271, 42740, 41184, 39607, 38014, 36408, 34793, 33173,
+  31552, 29935, 28324, 26723, 25138, 23572, 22027, 20510,
+  19022, 17568, 16151, 14774, 13442, 12157, 10922,  9741,
+   8617,  7551,  6547,  5607,  4734,  3929,  3195,  2533,
+   1945,  1433,   997,   640,   360,   160,    40,     0
+};
+
+/**
+ * @brief  Fixed‐point Hann window for 256‐point complex data in Q31 format
+ * @param  data    q31_t[512] interleaved complex: {Re0,Im0,Re1,Im1,…,Re255,Im255}
+ */
+static void hanning256_q31(q31_t *data)
+{
+    for (uint32_t i = 0; i < 128; i++)
+    {
+        uint32_t j = 256 - 1 - i;
+        uint32_t w = hann_q16[i];
+
+        int32_t r_i  = data[2*i + 0];
+        int32_t im_i = data[2*i + 1];
+        int32_t r_j  = data[2*j + 0];
+        int32_t im_j = data[2*j + 1];
+
+        data[2*i + 0] = (q31_t)(((int64_t)r_i  * w) >> 16);
+        data[2*i + 1] = (q31_t)(((int64_t)im_i * w) >> 16);
+        data[2*j + 0] = (q31_t)(((int64_t)r_j  * w) >> 16);
+        data[2*j + 1] = (q31_t)(((int64_t)im_j * w) >> 16);
+    }
+}
+
+
 
 /**
  * @brief  Compute Complex FFT of size 128 for data.
@@ -174,7 +217,8 @@ void fft256_spectrum(float32_t* data)
 	mean_removal_float(data, FFT_BUFFER_SIZE);
 
 	/* apply window function */
-	hanning256_float(data);
+	//hanning256_float(data);
+	hanning256_q31(data);
 
 	/* compute FFT */
 	fft256_float(data);
@@ -211,7 +255,7 @@ void find_peak_frequency(const float32_t *spectrum, uint32_t fft_size, float32_t
     uint32_t peak_index = 0;
     bool first = true;
 
-    const float32_t AMPLITUDE_THRESHOLD = 2.0f;
+    const float32_t AMPLITUDE_THRESHOLD = 4.0f;
 
     // Ensure fft_size is valid
 	if (fft_size == 0 || spectrum == NULL || peak_freq == NULL || peak_value == NULL || target_velocity == NULL) {
@@ -263,7 +307,6 @@ void test_fft(float32_t* max_value, float32_t* peak_index, float32_t* target_vel
 
     // Output results (for debugging, use a breakpoint or UART to observe `sampled_data`)
 }
-
 
 
 
