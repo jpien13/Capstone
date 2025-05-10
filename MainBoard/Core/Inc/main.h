@@ -61,10 +61,18 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define SEL_1_Pin GPIO_PIN_13
 #define SEL_1_GPIO_Port GPIOC
+#define TDet_1_Pin GPIO_PIN_0
+#define TDet_1_GPIO_Port GPIOH
+#define PDet_1_Pin GPIO_PIN_1
+#define PDet_1_GPIO_Port GPIOH
 #define Speaker_En_Pin GPIO_PIN_2
 #define Speaker_En_GPIO_Port GPIOB
 #define SEL_2_Pin GPIO_PIN_9
 #define SEL_2_GPIO_Port GPIOA
+#define TDet_2_Pin GPIO_PIN_11
+#define TDet_2_GPIO_Port GPIOA
+#define PDet_2_Pin GPIO_PIN_12
+#define PDet_2_GPIO_Port GPIOA
 
 /* USER CODE BEGIN Private defines */
 

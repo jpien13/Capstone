@@ -578,6 +578,7 @@ static void MX_GPIO_Init(void)
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
@@ -597,6 +598,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(SEL_1_GPIO_Port, &GPIO_InitStruct);
 
+  /*Configure GPIO pins : TDet_1_Pin PDet_1_Pin */
+  GPIO_InitStruct.Pin = TDet_1_Pin|PDet_1_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
+
   /*Configure GPIO pin : Speaker_En_Pin */
   GPIO_InitStruct.Pin = Speaker_En_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -610,6 +617,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(SEL_2_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : TDet_2_Pin PDet_2_Pin */
+  GPIO_InitStruct.Pin = TDet_2_Pin|PDet_2_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
@@ -662,6 +675,17 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
         }
     } else if(htim == &htim2){
 
+        bool det1 = (GPIOH->IDR & PDet_1_Pin) != 0;
+        bool det2 = (GPIOA->IDR & PDet_2_Pin) != 0;
+
+        // if neither radar sees motion, mute both channels immediately
+        if (!det1 && !det2) {
+            TIM2->CCR3 = 0;
+            TIM2->CCR4 = 0;
+            return;
+        }
+
+
     	// every interrupt (clk/1600) it increases step
     	step_counter++;
 
@@ -671,11 +695,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 
 			sine_index = (sine_index + 1) % SINE_STEPS;
 
-			// Updates PWM outputs to both speakers
-			TIM2->CCR3 = sine_table[sine_index];
-			TIM2->CCR4 = sine_table[sine_index];
-
 		}
+    	TIM2->CCR3 = det1 ? sine_table[sine_index] : 0;
+    	TIM2->CCR4 = det2 ? sine_table[sine_index] : 0;
 
 		update_counter++;
 		// Every 2000 interrupts:
