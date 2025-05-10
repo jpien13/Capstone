@@ -679,6 +679,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
         bool det2 = (GPIOA->IDR & PDet_2_Pin) != 0;
 
         // if neither radar sees motion, mute both channels immediately
+        // This works!
         if (!det1 && !det2) {
             TIM2->CCR3 = 0;
             TIM2->CCR4 = 0;
