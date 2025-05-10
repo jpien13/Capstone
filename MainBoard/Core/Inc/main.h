@@ -67,6 +67,10 @@ void Error_Handler(void);
 #define PDet_1_GPIO_Port GPIOH
 #define Speaker_En_Pin GPIO_PIN_2
 #define Speaker_En_GPIO_Port GPIOB
+#define Vol_2_Pin GPIO_PIN_14
+#define Vol_2_GPIO_Port GPIOB
+#define Vol_1_Pin GPIO_PIN_15
+#define Vol_1_GPIO_Port GPIOB
 #define SEL_2_Pin GPIO_PIN_9
 #define SEL_2_GPIO_Port GPIOA
 #define TDet_2_Pin GPIO_PIN_11

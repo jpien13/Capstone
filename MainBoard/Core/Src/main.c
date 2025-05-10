@@ -102,6 +102,8 @@ float32_t velocity_average_radar2 = 0.0f;
 #define RADAR2_CS_PIN  GPIO_PIN_9
 #define Speaker_En_GPIO_Port GPIOB
 #define Speaker_En_Pin GPIO_PIN_2
+#define VOL_UP_PIN   Vol_1_Pin
+#define VOL_DOWN_PIN Vol_2_Pin
 
 #define MIN_FREQ 50
 #define MAX_FREQ 2000
@@ -150,6 +152,7 @@ int step_counter = 0;          // Counter for timing sine wave steps
 int steps_per_cycle = 0;       // How many timer ticks between sine table updates
 int update_counter = 0;        // Counter for frequency updates
 
+volatile uint8_t volume_percent = 50;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -288,8 +291,21 @@ int main(void)
 	  }
 	  printf("\r\n");
 
+	  HAL_Delay(10);
 
-	  HAL_Delay(100);
+	  if (HAL_GPIO_ReadPin(GPIOB, VOL_UP_PIN) == GPIO_PIN_SET) {
+	    if (volume_percent < 100){
+	    	volume_percent += 10;
+	    }
+	    HAL_Delay(5);
+	  }
+	  if (HAL_GPIO_ReadPin(GPIOB, VOL_DOWN_PIN) == GPIO_PIN_SET) {
+	    if (volume_percent > 0) {
+	    	volume_percent -= 10;
+	    }
+	    HAL_Delay(5);
+	  }
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -611,6 +627,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(Speaker_En_GPIO_Port, &GPIO_InitStruct);
 
+  /*Configure GPIO pins : Vol_2_Pin Vol_1_Pin */
+  GPIO_InitStruct.Pin = Vol_2_Pin|Vol_1_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
   /*Configure GPIO pin : SEL_2_Pin */
   GPIO_InitStruct.Pin = SEL_2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -697,8 +719,11 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 			sine_index = (sine_index + 1) % SINE_STEPS;
 
 		}
-    	TIM2->CCR3 = det1 ? sine_table[sine_index] : 0;
-    	TIM2->CCR4 = det2 ? sine_table[sine_index] : 0;
+
+    	uint16_t raw   = sine_table[sine_index];
+    	uint16_t amp   = (raw * volume_percent) / 100;
+    	TIM2->CCR3 = det1 ? amp : 0;
+    	TIM2->CCR4 = det2 ? amp : 0;
 
 		update_counter++;
 		// Every 2000 interrupts:
